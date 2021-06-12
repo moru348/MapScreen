@@ -2,14 +2,14 @@ package dev.moru3.mapscreen
 
 import org.bukkit.Location
 import org.bukkit.map.MapPalette
-import org.bukkit.util.Vector
 import org.bytedeco.javacv.FFmpegFrameGrabber
 import org.bytedeco.javacv.Java2DFrameConverter
 import java.awt.RenderingHints
 import java.awt.image.BufferedImage
 import java.io.File
+import kotlin.math.*
 
-class Screen(private val file: File, val basePosition: Location, val ab: Vector) {
+class Screen(private val file: File, val pos1: Location, val pos2: Location) {
 
     private val height: Int
     private val width: Int
@@ -33,12 +33,29 @@ class Screen(private val file: File, val basePosition: Location, val ab: Vector)
             } }
     }
 
+    fun Int.aMinus(integer: Int): Int { return max(this, integer)-min(this, integer) }
+
     init {
         file.takeUnless(File::exists)?.also { throw NullPointerException("video.mp4が存在しません。(${file.absolutePath})") }
-        if(ab.x!=0.0&&ab.z!=0.0) { throw IllegalArgumentException("abはx,yのどちらかが0になる必要があるヨ！") }
-        height = ab.y.toInt()
-        width = (if(ab.x==0.0) ab.z else ab.x).toInt()
-        baseDirection = if(ab.x==0.0) DirectionType.Z else DirectionType.X
+        if(pos1.world!=pos2.world) { throw IllegalArgumentException("pos1とpos2は同じワールドである必要があります。") }
+        if(listOf(pos1.blockX-pos2.blockX,pos1.blockZ-pos2.blockZ,pos1.blockY-pos2.blockY)
+                .map(0::equals).filter(true::equals).size!=2) { throw IllegalArgumentException("abはx,yのどちらかが0になる必要があるヨ！") }
+        when {
+            pos1.blockX-pos2.blockX==0 -> {
+                baseDirection = DirectionType.X
+                height = pos1.blockX.aMinus(pos2.blockX)
+            }
+            pos1.blockZ-pos2.blockZ==0 -> {
+                baseDirection = DirectionType.Z
+                height = pos1.blockZ.aMinus(pos2.blockZ)
+            }
+            else -> {
+                baseDirection = DirectionType.Y
+
+            }
+        }
+        width = pos1.blockY.aMinus(pos2.blockY)
+
         val frameGrabber = FFmpegFrameGrabber(file)
         if(frameGrabber.frameRate<20) { throw IllegalArgumentException("動画ファイルのフレームレートは20以上である必要があります。") }
         if(width<0) { throw IllegalArgumentException("widthは0以上にする必要があります。") }
@@ -85,7 +102,4 @@ enum class BaseType {
     HEIGHT
 }
 
-enum class DirectionType {
-    X,
-    Z
-}
+enum class DirectionType { X, Y, Z }
