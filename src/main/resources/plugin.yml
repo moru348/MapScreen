@@ -1,0 +1,6 @@
+name: MapScreen
+version: @version@
+main: dev.moru3.mapscreen.MapScreen
+api-version: 1.16
+authors: [ moru3_48 ]
+description: 大きなマップで構成されたクリーンに映像を出力します。
