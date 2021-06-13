@@ -9,22 +9,23 @@ import java.awt.image.BufferedImage
 import java.io.File
 import kotlin.math.*
 
-class Screen(private val file: File, val pos1: Location, val pos2: Location) {
+class Screen(private val file: File, tempPos1: Location, tempPos2: Location, val direction: Direction) {
 
     private val height: Int
     private val width: Int
-    private val baseDirection: DirectionType
+
+    private val pos1: Location = tempPos1.clone()
+    private val pos2: Location = tempPos2.clone()
 
     private val frames = mutableListOf<List<Byte>>()
     private var frame = 0
-    private var base: BaseType
 
     private var scheduler: MultiThreadScheduler? = null
     private val frameRate = 20
 
     private val mag: Int
 
-    fun BufferedImage.resize(newWidth: Int, newHeight: Int): BufferedImage {
+    private fun BufferedImage.resize(newWidth: Int, newHeight: Int): BufferedImage {
         return BufferedImage(newWidth, newHeight, this.type).apply {
             createGraphics().also {
                 it.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR)
@@ -33,39 +34,38 @@ class Screen(private val file: File, val pos1: Location, val pos2: Location) {
             } }
     }
 
-    fun Int.aMinus(integer: Int): Int { return max(this, integer)-min(this, integer) }
+    private fun angleDistance(a: Int, b: Int): Int {
+        return (abs(b - a) % 360).run { if(this>180) this - 360 else this }
+    }
 
     init {
-        file.takeUnless(File::exists)?.also { throw NullPointerException("video.mp4が存在しません。(${file.absolutePath})") }
+        this.pos1.also { it.x=min(tempPos1.x, tempPos2.x);it.y=min(tempPos1.y, tempPos2.y);it.z=min(tempPos1.z, tempPos2.z) }
+        this.pos2.also { it.x=max(tempPos1.x, tempPos2.x);it.y=max(tempPos1.y, tempPos2.y);it.z=max(tempPos1.z, tempPos2.z) }
+        file.takeIf(File::exists)?:throw NullPointerException("video.mp4が存在しません。(${file.absolutePath})")
         if(pos1.world!=pos2.world) { throw IllegalArgumentException("pos1とpos2は同じワールドである必要があります。") }
         if(listOf(pos1.blockX-pos2.blockX,pos1.blockZ-pos2.blockZ,pos1.blockY-pos2.blockY)
                 .map(0::equals).filter(true::equals).size!=2) { throw IllegalArgumentException("abはx,yのどちらかが0になる必要があるヨ！") }
         when {
-            pos1.blockX-pos2.blockX==0 -> {
-                baseDirection = DirectionType.X
-                height = pos1.blockX.aMinus(pos2.blockX)
+            pos2.blockX-pos1.blockX==0 -> {
+                height = pos2.blockX - pos1.blockX
+                width = pos2.blockY - pos1.blockY
             }
-            pos1.blockZ-pos2.blockZ==0 -> {
-                baseDirection = DirectionType.Z
-                height = pos1.blockZ.aMinus(pos2.blockZ)
+            pos2.blockZ-pos1.blockZ==0 -> {
+                height = pos2.blockZ - pos1.blockZ
+                width = pos2.blockY - pos1.blockY
             }
             else -> {
-                baseDirection = DirectionType.Y
-
+                height = pos2.blockX - pos1.blockX
+                width = pos2.blockZ - pos1.blockZ
             }
         }
-        width = pos1.blockY.aMinus(pos2.blockY)
 
         val frameGrabber = FFmpegFrameGrabber(file)
         if(frameGrabber.frameRate<20) { throw IllegalArgumentException("動画ファイルのフレームレートは20以上である必要があります。") }
         if(width<0) { throw IllegalArgumentException("widthは0以上にする必要があります。") }
         if(height<0) { throw IllegalArgumentException("heightは0以上にする必要があります。") }
 
-        base = BaseType.WIDTH
-        mag = ((width*128)/frameGrabber.imageWidth).takeUnless { frameGrabber.imageHeight*it>height*128 }?: run {
-            base=BaseType.HEIGHT
-            (width*128)/frameGrabber.imageHeight
-        }
+        mag = ((width*128)/frameGrabber.imageWidth).takeUnless { frameGrabber.imageHeight*it>height*128 }?:(width*128)/frameGrabber.imageHeight
         val height = frameGrabber.imageHeight*mag
         val width = frameGrabber.imageWidth*mag
 
@@ -97,9 +97,4 @@ class Screen(private val file: File, val pos1: Location, val pos2: Location) {
     }
 }
 
-enum class BaseType {
-    WIDTH,
-    HEIGHT
-}
-
-enum class DirectionType { X, Y, Z }
+enum class Direction { EAST, WEST, NORTH, SOUTH, TOP, BOTTOM }
