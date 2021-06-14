@@ -1,5 +1,5 @@
 name: MapScreen
-version: @version@
+version: 1.0
 main: dev.moru3.mapscreen.MapScreen
 api-version: 1.16
 authors: [ moru3_48 ]
